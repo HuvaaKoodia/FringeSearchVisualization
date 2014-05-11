@@ -1,9 +1,12 @@
-FringeSearchVisualization
+Fringe Search Visualization
 =========================
 
 A visualizator for the fringe search algorithm.
 
-Algorithm is based on this research paper:
+IO link:
+http://huvaakoodia.github.io/FringeSearchVisualization/
+
+The algorithm is based on this research paper:
 http://webdocs.cs.ualberta.ca/~games/pathfind/publications/cig2005.pdf
 
 The canvas code is based on this tutorial:
