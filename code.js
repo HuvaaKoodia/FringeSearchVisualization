@@ -11,14 +11,12 @@ function Tile(gx,gy,x,y,w,h) {
 	this.text="";
 	this.blocked=false;
 	
-	this.hash=gx+""+gy;
-	
 	this.parents=[];
 	this.f=0;
 }
 
 Tile.prototype.toString=function(){
-	return this.hash;
+	return this.gx+""+this.gy;
 }
 
 // Draws this shape to a given context
@@ -480,7 +478,7 @@ CanvasState.prototype.draw = function() {
 		cy+=dif;
 		ctx.fillText("M: stop pathfinder.\n",cx,cy);
 		cy+=dif;
-		ctx.fillText("R: stop pathfinder.\n",cx,cy);
+		ctx.fillText("R: reset map.\n",cx,cy);
 		cy+=dif*2;
 		ctx.fillText("H: open/close help.\n",cx,cy);
 		cy+=dif;
@@ -517,5 +515,5 @@ CanvasState.prototype.getMouse = function(e) {
 
 function init(canvasname) {
   var s = new CanvasState(document.getElementById(canvasname));
-  s.createGrid(25,25);
+  s.createGrid(20,20);
 }
