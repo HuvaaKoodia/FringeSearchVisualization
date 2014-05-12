@@ -11,6 +11,7 @@ function Tile(gx,gy,x,y,w,h) {
 	this.text="";
 	this.blocked=false;
 	
+	this.text_index=0;
 	this.parents=[];
 	this.f=0;
 }
@@ -31,8 +32,12 @@ if (this.blocked){
 ctx.strokeStyle = 'black';
 ctx.rect(this.x, this.y, this.w, this.h);
 
-ctx.font="20px Arial";
-ctx.strokeText(this.text,this.x+this.w/2,this.y+this.h/2);
+ctx.font="16px Arial";
+
+if (this.text_index==0)
+	ctx.strokeText(this.text,this.x+2,this.y+this.h/2);
+else
+	ctx.strokeText(this.text_index,this.x+2,this.y+this.h/2);
 
 ctx.stroke();
 }
@@ -47,9 +52,17 @@ Tile.prototype.contains = function(mx, my) {
 
 Tile.prototype.heuristicTo= function(other){
 	var xd=this.gx-other.gx,yd=this.gy-other.gy;
-	//return Math.abs(xd)+Math.abs(yd);
-	
-	return Math.sqrt(xd*xd+yd*yd);
+	//return Math.abs(xd)+Math.abs(yd); manhattan
+	var dis=Math.sqrt(xd*xd+yd*yd);
+	return dis;
+}
+
+Tile.prototype.heuristicFromTo= function(start,goal){
+	var start_dis=start.heuristicTo(goal);
+	var goal_dis=this.heuristicTo(goal);
+	var dif=goal_dis-start_dis;
+	if (dif>0) goal_dis+=start_dis;
+	return goal_dis;
 }
 
 function CanvasState(canvas) {
@@ -85,7 +98,6 @@ function CanvasState(canvas) {
   this.shapes = [];  // the collection of things to be drawn
   
   this.selected_tile = null, start_tile=null, goal_tile=null;
-  
   // **** Input events! ****
 
   var myState = this;
@@ -175,6 +187,14 @@ function CanvasState(canvas) {
 		}
 	}
 	
+	if (e.keyCode==65){//a
+		myState.auto_simulate=!myState.auto_simulate;
+	}
+
+	if (e.keyCode==73){//i
+		myState.do_yield=!myState.do_yield;
+	}
+	
 	if (e.keyCode==72){//h
 		myState.help_on=!myState.help_on;
 	}
@@ -200,8 +220,19 @@ function CanvasState(canvas) {
   this.full_path=[];
   this.current_n;
   
+  this.do_yield=true;
+  
+  this.auto_simulate=true;
+  this.auto_index=0;
+  this.auto_delay=0;
+  
   this.f_limit;
   this.f_min;
+  
+  //path finder stats
+  this.tile_check_amount=0;
+  this.tile_child_check_amount=0;
+  this.pathfinder_time=0;
 }
 
 CanvasState.prototype.ResetGrid=function(){
@@ -217,15 +248,36 @@ CanvasState.prototype.ResetPathfinder=function(){
 	this.full_path.length=0;
 	
 	this.pathfinder_on=false;
+	
+	this.tile_child_check_amount=0;
+	this.tile_check_amount=0;
+	
+	for (var i=0;i<this.shapes.length;++i){
+		var tile=this.shapes[i];
+		tile.text_index=0;
+		tile.f=0;
+		tile.parents.length=0;
+	}
 }
 
 CanvasState.prototype.UpdatePathfinder=function(){
 	if (this.start_tile==null||this.goal_tile==null) yield false;
 	console.log("pathfinder set up");
+	
+	//timer
+	
+	var time=0;
+	/*
+	function timerUpdate(){
+		++time;
+	}
+	
+	timer=setTimeout(timerUpdate,1);
+	*/
+	//set up
 	this.ResetPathfinder();
 	
-	//set up values
-	this.f_limit=this.start_tile.heuristicTo(this.goal_tile)+1;
+	this.f_limit=this.start_tile.heuristicTo(this.goal_tile);
 	console.log("start limit: "+this.f_limit);
 	this.found=false;
 	
@@ -251,15 +303,18 @@ CanvasState.prototype.UpdatePathfinder=function(){
 		var i=0;
 		var l=this.now_list.length;
 		for (;i<this.now_list.length;++i){
-			console.log("next tile!");
+			//console.log("next tile!");
 			var n=this.now_list[i];
 			this.current_n=n;
 			
-			if (n==null||n.blocked) continue;
+			++this.tile_check_amount;
 			
+			if (this.do_yield) yield undefined;
+			
+			//if (n==null||n.blocked) continue;//dev. unnec
+
 			var g=this.g_cache[n].v;
-			var f=g+n.heuristicTo(this.goal_tile);
-			
+			var f=g+n.heuristicFromTo(this.start_tile,this.goal_tile);
 			n.f=f;
 			
 			if (n==this.goal_tile){
@@ -271,38 +326,41 @@ CanvasState.prototype.UpdatePathfinder=function(){
 			if (f>this.f_limit){
 				this.f_min=Math.min(f,this.f_min);
 				f_min_changed=true;
-				console.log("skipped tile, too far away!");
+				//console.log("skipped tile, too far away!");
 				continue;
 			}
-
-			yield undefined;
-			console.log("iterating children!");
+			//console.log("iterating children!");
 			//iterate children
 			for (var j=0;j<4;++j){
 				var d=this.directions[j];
 				var s=this.GetTile(n.gx,n.gy,d.x,d.y);
-				console.log("child "+j);
+				//console.log("child "+j);
 				
-				if (s==null||n.blocked) continue;
+				++this.tile_child_check_amount;
 				
-				s.parents.push(n);
+				if (s==null||s.blocked) continue;
 				
 				var gs=g+1;//dev.temp cost 1
 				var gt=this.g_cache[s];
 				if (gt!=undefined){
-					console.log(""+gt.v+ ", " +s.toString());
 					if (gs>=gt.v){
-						continue;//this child tested before with better results
+						continue;//this child was tested before with better results
 					}
 				}
-				console.log("added to later list");
+				
+				//dev. temp cost numbers
+				if (s!=this.start_tile&&s!=this.goal_tile)
+					s.text_index=gs;
+				
+				s.parents.push(n);
+				
+				//console.log("added to later list");
 				this.later_list.push(s);
 				//remove from now list
 				var index=this.now_list.indexOf(s);
 				if (index!=-1){
 					this.now_list.splice(index,1);
 				}
-				
 				//add into next iteration
 				//this.now_list.splice(this.now_list.length,0,s);
 				this.now_list.splice(i+1,0,s);
@@ -310,49 +368,42 @@ CanvasState.prototype.UpdatePathfinder=function(){
 			}
 			this.now_list.splice(i,1);
 			--i;
-			console.log("iterating children done! ");
-			yield undefined;
-			this.later_list.length=0;
+			//console.log("iterating children done! ");
+			if (this.do_yield) yield undefined;
 		}
-		
+		this.later_list.length=0;
 		if (!found){
 			if (f_min_changed){
 				this.f_limit=this.f_min;
 			}
-			console.log("f limit: "+this.f_limit);
-			console.log("next iteration please! ");
-			yield undefined;
+			//console.log("f limit: "+this.f_limit);
+			//console.log("next iteration please! ");
+			if (this.do_yield) yield undefined;
 		}
 	}
-	
 	//create path
 	var tile=this.goal_tile;
-
-	while(tile!=this.start_tile){
+	
+	while(tile!=null&&tile!=this.start_tile){
 		this.full_path.push(tile);
 	
 		var min=tile.f*2;
 		var next=null;
-		for (var i=0;i<tile.parents.length;++i){
-			var parent=tile.parents[i];
+		console.log("length: "+tile.parents.length);
+		for (var k=0;k<tile.parents.length;++k){
+			var parent=tile.parents[k];
 			if (parent.f<min){
 				next=parent;
 				min=parent.f;
 			}
 		}
-		console.log(""+tile.gx+" , "+tile.gy);
 		tile=next;
 	}
 	
-	console.log("path size: "+this.full_path.length);
+	//console.log("path size: "+this.full_path.length);
 	
-	for (var i=0;i<this.full_path.length;++i){
-		var t=this.full_path[i];
-		console.log(t.hash);
-	}
-	
-	
-	//this.pathfinder_on=false;
+	this.pathfinder_time=time;
+	this.pathfinder_on=false;
 	yield false;
 }
 
@@ -409,7 +460,7 @@ CanvasState.prototype.draw = function() {
     var ctx = this.ctx;
     var shapes = this.shapes;
     this.clear();
-
+	
 	// now list
     var l = this.now_list.length;
     for (var i = 0; i < l; i++) {
@@ -437,13 +488,15 @@ CanvasState.prototype.draw = function() {
 		ctx.fillRect(shape.x,shape.y,shape.w,shape.h);
 	}
 	
+	
     // all tiles
     var l = shapes.length;
     for (var i = 0; i < l; i++) {
       var shape = shapes[i];
       shapes[i].draw(ctx);
     }
-    
+	
+	
     // draw selected_tile
     if (this.selected_tile != null) {
       ctx.strokeStyle = this.selectionColor;
@@ -460,31 +513,77 @@ CanvasState.prototype.draw = function() {
       ctx.strokeRect(mySel.x,mySel.y,mySel.w,mySel.h);
     }
 	
+	var cx=this.gw*32+32, cy=32,dif=24;
+	
 	if(this.help_on){
-		//help
-		var cx=this.gw*32+32, cy=32,dif=24;
+		//help	
 		ctx.fillStyle="black";
 		ctx.fillText("Help:",cx,cy);
 		cy+=dif;
 		ctx.fillText("LMB: select tile.",cx,cy);
 		cy+=dif;
-		ctx.fillText("S: set as start tile.\n",cx,cy);
+		ctx.fillText("S: set as start tile.",cx,cy);
 		cy+=dif;
-		ctx.fillText("G: set as goal tile.\n",cx,cy);
+		ctx.fillText("G: set as goal tile.",cx,cy);
 		cy+=dif;
-		ctx.fillText("W: set as wall.\n",cx,cy);
+		ctx.fillText("W: set as wall.",cx,cy);
 		cy+=dif*2;
-		ctx.fillText("N: start/continue pathfinder.\n",cx,cy);
+		ctx.fillText("N: start/continue pathfinder.",cx,cy);
 		cy+=dif;
-		ctx.fillText("M: stop pathfinder.\n",cx,cy);
+		ctx.fillText("M: stop pathfinder.",cx,cy);
 		cy+=dif;
-		ctx.fillText("R: reset map.\n",cx,cy);
+		ctx.fillText("A: auto run pathfinder.",cx,cy);
+		cy+=dif;
+		ctx.fillText("I: toggle instant pathfinding.",cx,cy);
+		cy+=dif;
+		ctx.fillText("R: reset map.",cx,cy);
 		cy+=dif*2;
-		ctx.fillText("H: open/close help.\n",cx,cy);
+		ctx.fillText("H: open/close help.",cx,cy);
 		cy+=dif;
+		ctx.fillText("- - - - - - - - - - -",cx,cy);
+		cy+=dif*2;
+	}
+
+	ctx.fillStyle="black";
+	if (!this.do_yield){
+		ctx.fillText("Instant",cx,cy);
+	}
+	else if (this.auto_simulate){
+		ctx.fillText("Auto",cx,cy);
+	}		
+	
+	cx=10;cy=this.gh*32+32;
+	
+	//stats
+	if (this.tile_check_amount>0){
+		ctx.fillText("Stats:",cx,cy);
+		cy+=dif*1.5;
+		ctx.fillText("Tile checks: "+this.tile_check_amount,cx,cy);
+		cy+=dif;
+		ctx.fillText("Tile child checks: "+this.tile_child_check_amount,cx,cy);
+		cy+=dif;
+		ctx.fillText("F limit: "+this.f_limit,cx,cy);
+		cy+=dif;
+		if (this.pathfinder_time>0){
+			ctx.fillText("Time: "+this.pathfinder_time,cx,cy);
+			cy+=dif;
+		}
 	}
 	
+	
     this.valid = true;
+	
+	//auto_update
+	if (this.auto_simulate&&this.pathfinder_on){
+		if (this.auto_index>0){
+			--this.auto_index;
+		}
+		else{
+			this.auto_index=this.auto_index_delay;
+			this.pathfinder.next();
+		}
+		this.valid=false;
+	}
 }
 
 
