@@ -1,7 +1,7 @@
 Fringe Search Visualization
 =========================
 
-A visualizator for the fringe search algorithm.
+A visualization for the fringe search algorithm.
 
 IO link:
 http://huvaakoodia.github.io/FringeSearchVisualization/

@@ -14,6 +14,7 @@ function Tile(gx,gy,x,y,w,h) {
 	this.text_index=0;
 	this.parents=[];
 	this.f=0;
+	this.g=0;
 }
 
 Tile.prototype.toString=function(){
@@ -94,15 +95,44 @@ function CanvasState(canvas) {
   
   // **** Keep track of state! ****
   
+  this.dragging=false;
+  
   this.valid = false; // when set to false, the canvas will redraw everything
   this.shapes = [];  // the collection of things to be drawn
   
+  this.paintOn=true;
   this.selected_tile = null, start_tile=null, goal_tile=null;
+
   // **** Input events! ****
 
   var myState = this;
 
   canvas.addEventListener('mousedown', function(e) {
+	myState.dragging=true;
+	
+    var mouse = myState.getMouse(e);
+    var mx = mouse.x;
+    var my = mouse.y;
+    var shapes = myState.shapes;
+    var l = shapes.length;
+	//select
+    for (var i = l-1; i >= 0; i--) {
+      if (shapes[i].contains(mx, my)) {
+        var mySel = shapes[i];
+		
+		if (myState.selected_tile!=mySel){
+			myState.paintOn=!mySel.blocked;
+		
+			myState.selected_tile = mySel;
+			myState.valid = false;
+		}
+        return;
+      }
+    }
+  }, true);
+  
+  canvas.addEventListener('mousemove', function(e) {
+  if (!myState.dragging) return;
     var mouse = myState.getMouse(e);
     var mx = mouse.x;
     var my = mouse.y;
@@ -117,11 +147,10 @@ function CanvasState(canvas) {
         return;
       }
     }
-	//deselect it
-    if (myState.selected_tile) {
-      myState.selected_tile = null;
-      myState.valid = false; // Need to clear the old selected_tile border
-    }
+  }, true);
+  
+  canvas.addEventListener('mouseup', function(e) {
+	myState.dragging=false;
   }, true);
   
   canvas.addEventListener('keyup',function(e){
@@ -150,9 +179,10 @@ function CanvasState(canvas) {
 				myState.goal_tile.text="G";
 			}
 		}
+		
 		if (e.keyCode==87){//w
-			if (myState.selected_tile==myState.start_tile||myState.selected_tile==myState.goal_tile) return;
-			myState.selected_tile.blocked=!myState.selected_tile.blocked;
+			
+			myState.paintOn=!myState.paintOn;
 		}
 	}
 	
@@ -199,6 +229,20 @@ function CanvasState(canvas) {
 		myState.help_on=!myState.help_on;
 	}
   
+	myState.valid=false;
+	
+  },false);
+  
+  
+  canvas.addEventListener('keydown',function(e){
+	e=e||window.event;
+	
+	if (!myState.pathfinder_on){
+		if (e.keyCode==87){//w
+			if (myState.selected_tile==myState.start_tile||myState.selected_tile==myState.goal_tile) return;
+			myState.selected_tile.blocked=myState.paintOn;
+		}
+	}
 	myState.valid=false;
 	
   },false);
@@ -271,9 +315,9 @@ CanvasState.prototype.UpdatePathfinder=function(){
 	function timerUpdate(){
 		++time;
 	}
-	
 	timer=setTimeout(timerUpdate,1);
 	*/
+	
 	//set up
 	this.ResetPathfinder();
 	
@@ -353,6 +397,7 @@ CanvasState.prototype.UpdatePathfinder=function(){
 					s.text_index=gs;
 				
 				s.parents.push(n);
+				s.g=gs;
 				
 				//console.log("added to later list");
 				this.later_list.push(s);
@@ -387,14 +432,14 @@ CanvasState.prototype.UpdatePathfinder=function(){
 	while(tile!=null&&tile!=this.start_tile){
 		this.full_path.push(tile);
 	
-		var min=tile.f*2;
+		var min=tile.g*2;
 		var next=null;
 		console.log("length: "+tile.parents.length);
 		for (var k=0;k<tile.parents.length;++k){
 			var parent=tile.parents[k];
-			if (parent.f<min){
+			if (parent.g<min){
 				next=parent;
-				min=parent.f;
+				min=parent.g;
 			}
 		}
 		tile=next;
