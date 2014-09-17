@@ -1,7 +1,7 @@
 Fringe Search Visualization
 =========================
 
-A visualization for the fringe search algorithm.
+A visualization for the fringe search pathfinding algorithm.
 
 IO link:
 http://huvaakoodia.github.io/FringeSearchVisualization/
@@ -14,6 +14,6 @@ http://simonsarris.com/blog/510-making-html5-canvas-useful
 
 
 Created only for the visualization purposes.
-As such the code isn't cleaned up and my version of the algorithm certainly isn't optimized (and it's javascript!).
+As such the code isn't cleaned up and my version of the algorithm certainly isn't optimized (it's also javascript!).
 
 Feel free to fork the repo and do with it what you please.
