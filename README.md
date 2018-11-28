@@ -13,7 +13,5 @@ The canvas code is based on this tutorial:
 http://simonsarris.com/blog/510-making-html5-canvas-useful
 
 
-Created only for the visualization purposes.
-As such the code isn't cleaned up and my version of the algorithm certainly isn't optimized (it's also javascript!).
-
+Created for visualization purposes, the code is not optimized.
 Feel free to fork the repo and do with it what you please.
